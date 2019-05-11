@@ -19,7 +19,7 @@ class Request
     public static function get($url, $query = [], $options = [])
     {
         $options['query'] = $query;
-        return self::request('get', $url, $options);
+        return self::send('get', $url, $options);
     }
 
     /**
@@ -32,7 +32,7 @@ class Request
     public static function post($url, $data = [], $options = [])
     {
         $options['data'] = $data;
-        return self::request('post', $url, $options);
+        return self::send('post', $url, $options);
     }
 
     /**
@@ -42,7 +42,7 @@ class Request
      * @param array $options 请求参数[headers,data]
      * @return boolean|string
      */
-    public static function request($method, $url, $options = [])
+    public static function send($method, $url, $options = [])
     {
         $curl = curl_init();
         // GET 参数设置
@@ -89,8 +89,7 @@ class Request
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
         $content = curl_exec($curl);
         $status = curl_getinfo($curl);
-        var_dump($status);
-        curl_close($curl);
+        
         return $content;
     }
 

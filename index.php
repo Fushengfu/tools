@@ -9,6 +9,8 @@ $result = Request::get($uri, [], [
 	'cookie_file'=> 'cookie',
 	'referer'=> 'http://www.kuaidi100.com/?from=openv',
 ]);
+var_dump($result);
+
 $result = Request::get($uri, [], [
 	'cookie_file'=> 'cookie',
 	'referer'=> 'http://www.kuaidi100.com/?from=openv',
