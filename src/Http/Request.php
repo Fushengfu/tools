@@ -44,28 +44,47 @@ class Request
      */
     public static function send($method, $url, $options = [])
     {
-        $curl = curl_init();
+        if (PHP_VERSION >= 7.0) {
+            $query      = $options['query']??false;
+            $headers    = $options['headers']??false;
+            $cookie     = $options['cookie']??false;
+            $cookieFile = $options['cookie_file']??false;
+            $referer    = $options['referer']??false;
+        } else {
+            $query      = (isset($options['query']) && !empty($options['query'])) ? $options['query'] : false;
+            $headers    = (isset($options['headers']) && !empty($options['headers'])) ? $options['headers'] : false;
+            $cookie     = (isset($options['cookie']) && !empty($options['cookie'])) ? $options['cookie'] : false;
+            $cookieFile = (isset($options['cookie_file']) && !empty($options['cookie_file'])) ? $options['cookie_file'] : false;
+            $referer    = (isset($options['referer']) && !empty($options['referer'])) ? $options['referer'] : false;
+        }
         // GET 参数设置
-        if ($options['query']??false) {
+        if ($query) {
             $url .= (stripos($url, '?') !== false ? '&' : '?') . http_build_query($options['query']);
         }
+
+        // 初始化curl
+        $curl = curl_init();
+
         // 浏览器代理设置
         curl_setopt($curl, CURLOPT_USERAGENT, self::getUserAgent());
+
         // CURL 头信息设置
-        if ($options['headers']??false) {
+        if ($headers) {
             curl_setopt($curl, CURLOPT_HTTPHEADER, $options['headers']);
         }
+
         // Cookie 信息设置
-        if ($options['cookie']??false) {
+        if ($cookie) {
             curl_setopt($curl, CURLOPT_COOKIE, $options['cookie']);
         }
-        if ($options['cookie_file']??false) {
+
+        if ($cookieFile) {
             curl_setopt($curl, CURLOPT_COOKIEJAR, $options['cookie_file']);
             curl_setopt($curl, CURLOPT_COOKIEFILE, $options['cookie_file']);
         }
 
         // 设置referer
-        if ($options['referer']??false) {
+        if ($referer) {
             curl_setopt($curl, CURLOPT_REFERER, $options['referer']);
         }
 
@@ -74,12 +93,14 @@ class Request
             curl_setopt($curl, CURLOPT_POST, true);
             curl_setopt($curl, CURLOPT_POSTFIELDS, self::setFormData($options['data']));
         }
+
         // 请求超时设置
         if (isset($options['timeout']) && is_numeric($options['timeout'])) {
             curl_setopt($curl, CURLOPT_TIMEOUT, $options['timeout']);
         } else {
             curl_setopt($curl, CURLOPT_TIMEOUT, 60);
         }
+
         curl_setopt($curl, CURLOPT_URL, $url);
         curl_setopt($curl, CURLOPT_HEADER, false);
         curl_setopt($curl, CURLOPT_AUTOREFERER, true);
@@ -89,7 +110,9 @@ class Request
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
         $content = curl_exec($curl);
         $status = curl_getinfo($curl);
-        
+        if ($status['http_code'] !== 200) {
+            $content = false;
+        }
         return $content;
     }
 
