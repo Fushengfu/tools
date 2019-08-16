@@ -8,8 +8,7 @@ namespace Amulet\Wechat;
 // | Author: fushengfu <shengfu8161980541@qq.com>
 // +----------------------------------------------------------------------
 
-class WechatReceive
-{
+class Receive {
     /** 消息推送地址 */
     const CUSTOM_SEND_URL           = '/message/custom/send?';
     const MASS_SEND_URL             = '/message/mass/send?';
@@ -38,8 +37,7 @@ class WechatReceive
     // 类的实例
     private static $instance;
 
-    private function __construct()
-    {
+    private function __construct(){
         $postStr = file_get_contents("php://input");
         if (stripos('<xml>', $postStr)) {
             $this->_receive = (array)simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
@@ -48,9 +46,34 @@ class WechatReceive
         }
     }
 
+    // 解密数据
+    protected function decryptMsg($encryptMsg){
+        $timeStamp  = $_GET['timeStamp'];
+        $nonce      = $_GET['nonce'];
+
+        $xml_tree   = new DOMDocument();
+        $xml_tree->loadXML($encryptMsg);
+        $array_e    = $xml_tree->getElementsByTagName('Encrypt');
+        $array_s    = $xml_tree->getElementsByTagName('MsgSignature');
+        $encrypt    = $array_e->item(0)->nodeValue;
+        // $msg_sign   = $array_s->item(0)->nodeValue;
+        $msg_sign   = $_GET['msg_signature'];
+
+        $format = "<xml><ToUserName><![CDATA[toUser]]></ToUserName><Encrypt><![CDATA[%s]]></Encrypt></xml>";
+        $from_xml = sprintf($format, $encrypt);
+
+        // 第三方收到公众号平台发送的消息
+        $msg = '';
+        $errCode = $pc->decryptMsg($msg_sign, $timeStamp, $nonce, $from_xml, $msg);
+        if ($errCode == 0) {
+            print("解密后: " . $msg . "\n");
+        } else {
+            print($errCode . "\n");
+        }
+    }
+
     // 创建操作对象
-    public static function instance()
-    {
+    public static function instance(){
         if (is_null(self::$instance)) {
             self::$instance = new self;
         }
@@ -59,74 +82,62 @@ class WechatReceive
     }
 
     // 获取微信服务器发来的信息
-    public function getMsg()
-    {
+    public function getMsg(){
         return $this->_receive;
     }
 
     // 获取消息发送人的openid
-    public function getFromUserName()
-    {
+    public function getFromUserName(){
         return $this->_receive['FromUserName'];
     }
 
     // 获取消息id
-    public function getMsgId()
-    {
+    public function getMsgId(){
         return $this->_receive['MsgId'];
     }
 
     // 获取媒体消息id
-    public function getMediaId()
-    {
+    public function getMediaId(){
         return $this->_receive['MediaId'];
     }
 
     // 获取图片链接
-    public function getPicUrl()
-    {
+    public function getPicUrl(){
         return $this->_receive['PicUrl'];
     }
 
     // 获取公众号id
-    public function getToUserName()
-    {
+    public function getToUserName(){
         return $this->_receive['ToUserName'];
     }
 
     // 获取消息成功接收时间
-    public function getCreateTime()
-    {
+    public function getCreateTime(){
         return $this->_receive['CreateTime'];
     }
 
     // 消息类型
-    public function getMsgType()
-    {
+    public function getMsgType(){
         return $this->_receive['MsgType'];
     }
 
     // 获取事件类型
-    public function getEvent()
-    {
+    public function getEvent(){
         return $this->_receive['Event'];
     }
 
     // 消息内容
-    public function getContent()
-    {
+    public function getContent(){
         return $this->_receive['Content'];
     }
 
     // 语音识别结果
-    public function getRecognition()
-    {
+    public function getRecognition(){
         return $this->_receive['Recognition'];
     }
 
     // 获取微信推送位置经纬度和高精度
-    public function getLocation()
-    {
+    public function getLocation(){
         $location = [
             'latitude'  => $this->_receive['Latitude'],
             'longitude' => $this->_receive['Longitude'],
@@ -136,14 +147,12 @@ class WechatReceive
     }
 
     // 获取主动发送位置
-    public function getLabel()
-    {
+    public function getLabel(){
         return $this->_receive['Label'];
     }
 
     // 获取主动发送经纬度位置
-    public function getActiveLocation()
-    {
+    public function getActiveLocation(){
         $location = [
             'location_x'  => $this->_receive['Location_X'],
             'location_y'  => $this->_receive['Location_Y']
@@ -151,8 +160,7 @@ class WechatReceive
         return $location;
     }
 
-    public function getThumbMediaId()
-    {
+    public function getThumbMediaId(){
         return $this->_receive['ThumbMediaId'];
     }
 

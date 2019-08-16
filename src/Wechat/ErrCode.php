@@ -8,8 +8,7 @@ namespace Amulet\Wechat;
 // | Author: fushengfu <shengfu8161980541@qq.com>
 // +----------------------------------------------------------------------
 
-class ErrCode
-{
+class ErrCode {
     public static $errCode=array(
         '-1'      => '系统繁忙',
         '0'       => '请求成功',
@@ -200,5 +199,3 @@ class ErrCode
         };
     }
 }
-
-?>

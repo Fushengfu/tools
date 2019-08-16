@@ -9,16 +9,10 @@ namespace Amulet\Wechat;
 // +----------------------------------------------------------------------
 
 use Amulet\Wechat\ErrCode;
-use Illuminate\Support\Facades\Redis;
-use Illuminate\Support\Facades\Cache;
-use App\Model\WechatFans;
+use Amulet\Wechat\Crypt\WXBizMsgCrypt;
 
 class Wechat
 {
-
-	// https://api.weixin.qq.com/cgi-bin/ticket/getticket?access_token=ACCESS_TOKEN&type=jsapi
-	// https://api.weixin.qq.com/wxa/getwxacodeunlimit?access_token=ACCESS_TOKEN
-	// https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=APPID&secret=APPSECRET
 	const API_URL_PREFIX = 'https://api.weixin.qq.com';
 	const AUTH_URL = '/cgi-bin/token?grant_type=client_credential&';
 	const GET_USER_INFO = "/sns/userinfo?access_token=";
@@ -42,7 +36,7 @@ class Wechat
 
 	private $jsapi_ticket;
 	private $api_ticket;
-	public $user_token;
+	public  $user_token;
 	private $partnerid;
 	private $partnerkey;
 	private $paysignkey;
@@ -54,29 +48,28 @@ class Wechat
 	public $errCode = 40001;
 	public $errMsg = "no access";
 
-	public function __construct($options)
-	{
-		$this->token 	   = $options['token']??'';
-		$this->encodingAesKey = $options['encodingaeskey']??'';
-		$this->appid 	   = $options['appid']??'';
-		$this->mapkey 	   = $options['mapkey']??'';
-		$this->appsecret   = $options['appsecret']??'';
-		$this->debug 	   = $options['debug']??false;
-		$this->logcallback = $options['logcallback']??false;
-		$this->refresh_token = $options['refresh_token']??null;
-		$this->access_token = $options['access_token']??'';
-		$this->expires_in = $options['expires_in']??0;
+	public function __construct($options) {
+
+		$this->token 	   		= (isset($options['token']) 			&& !empty($options['token'])) ? $options['token'] : '';
+		$this->encodingAesKey 	= (isset($options['encodingAesKey']) 	&& !empty($options['encodingAesKey'])) ? $options['encodingAesKey'] : '';
+		$this->appid 	   		= (isset($options['appid']) 			&& !empty($options['appid'])) ? $options['appid'] : '';
+		$this->mapkey 	   		= (isset($options['mapkey']) 			&& !empty($options['mapkey'])) ? $options['mapkey'] : '';
+		$this->appsecret   		= (isset($options['appsecret']) 		&& !empty($options['appsecret'])) ? $options['appsecret'] : '';
+		$this->debug 	   		= (isset($options['debug']) 			&& !empty($options['debug'])) ? $options['debug'] : false;
+		$this->logcallback 		= (isset($options['logcallback']) 		&& !empty($options['logcallback'])) ? $options['logcallback'] : false;
+		$this->refresh_token 	= (isset($options['refresh_token']) 	&& !empty($options['refresh_token'])) ? $options['refresh_token'] : null;
+		$this->access_token 	= (isset($options['access_token']) 		&& !empty($options['access_token'])) ? $options['access_token'] : '';
+		$this->expires_in 		= (isset($options['expires_in']) 		&& !empty($options['expires_in'])) ? $options['expires_in'] : 0;
 	}
 
 	/**
 	 * 验证消息是来自微信发送的
 	 */
-	public function checkSignature($get = array())
-	{
-		$signature = $get["signature"]??'';
-		$signature = $get["msg_signature"]??$signature; //如果存在加密验证则用加密验证段
-		$timestamp = $get["timestamp"]??'';
-		$nonce 	   = $get["nonce"]??'';
+	public function checkSignature($get = array()) {
+		$signature = (isset($get["signature"]) 		&& !empty($get["signature"])) ? $get["signature"] : '';
+		$signature = (isset($get["msg_signature"]) 	&& !empty($get["msg_signature"])) ? $get["msg_signature"] : $signature; //如果存在加密验证则用加密验证段
+		$timestamp = (isset($get["timestamp"]) 		&& !empty($get["timestamp"]))? $get["timestamp"] : '';
+		$nonce 	   = (isset($get["nonce"]) 			&& !empty($get["nonce"])) ? $get["nonce"] : '';
 		$token     = $this->token;
 		$tmpArr = array($token, $timestamp, $nonce);
 		sort($tmpArr, SORT_STRING);
@@ -90,80 +83,47 @@ class Wechat
 	}
 
 	/**
-	 * 通过code获取用户唯一标识 OpenID 和 会话密钥 session_key。
+	 * 加密数据
+	 */
+	public function packData($text){
+		// 第三方发送消息给公众平台
+		$timeStamp = time();
+		$nonce = $this->createToken(16);
+
+
+		$pc = new WXBizMsgCrypt($this->token, $this->encodingAesKey, $this->appid);
+		$encryptMsg = '';
+		$errCode = $pc->encryptMsg($text, $timeStamp, $nonce, $encryptMsg);
+		if ($errCode == 0) {
+			return $encryptMsg;
+		} else {
+			return ['errCode'=> $errCode, 'msg'=> '加密失败'];
+		}
+	}
+
+	/**
+	 * 网页授权
 	 * @return: array | false
 	 */
-   public function code2Session($code)
-   {
-   		$url = self::API_URL_PREFIX.self::JSCODE_2_SESSION.'appid='.$this->appid.'&secret='.$this->appsecret.'&js_code='.$code.'&grant_type=authorization_code';
-   		return $this->httpGet($url);
-   }
+	public function oauth($redirect_uri = '') {
 
-   public function getWxApp2Code($openid)
-   {
-	   	if (!$access_token = $this->getCache('wx_app_2code_access_token')) {
+		if ( (isset($_GET['code']) && !empty($_GET['code']))
+			|| ($this->expires_in != 0
+			&& time() - $this->expires_in < 30 * 24 * 60 * 60 + 7200)) {
 
-	   		$result = json_decode($this->httpGet(self::API_URL_PREFIX.self::AUTH_URL.'appid='.$this->appid.'&secret='.$this->appsecret), true);
-
-	   		if (!isset($result['errcode'])) {
-	   			$access_token =  $result['access_token'];
-		   		$this->setCache('wx_app_2code_access_token', $result['access_token'], $result['expires_in']);
-	   		}
-	   	}
-	   	$uri = self::API_URL_PREFIX.self::GET_WXACODE.'access_token='.$access_token;
-	   	$result = $this->httpPost($uri, json_encode(['scene'=> $openid]));
-
-	   	$res = json_decode($result, true);
-	   	if( isset($res['errcode']) && $res['errcode'] == 42001 ){
-	   		$result = json_decode($this->httpGet(self::API_URL_PREFIX.self::AUTH_URL.'appid='.$this->appid.'&secret='.$this->appsecret), true);
-
-	   		if (!isset($result['errcode'])) {
-	   			$access_token =  $result['access_token'];
-		   		$this->setCache('wx_app_2code_access_token', $result['access_token'], $result['expires_in']);
-	   		}
-	   		$uri = self::API_URL_PREFIX.self::GET_WXACODE.'access_token='.$access_token;
-	   		$result = $this->httpPost($uri, json_encode(['scene'=> $openid]));
-	   		$res = json_decode($result, true);
-	   	}
-	   	p($access_token);
-	   	if (isset($res['errcode'])) {
-	   		return false;
-	   	}
-
-	   	$url = UPLOADS_PATH.$openid.'.jpg';
-	   	// 写入图片信息
-	   	p($result, true,$url);
-	   	return request()->getSchemeAndHttpHost().'/public/uploads/'.$openid.'.jpg';
-   }
-
-	public function oauth()
-	{
-		if ($_GET['code']??false || ($this->expires_in != 0 && time() - $this->expires_in < 30 * 24 * 60 * 60 + 7200)) {
 			if (!$result = $this->getOauthAccessToken($this->refresh_token)) {
-				return ['OAUTH_ERROR'=>$this->weChat->errCode,'data'=>$this->weChat->errMsg];
+				return ['errCode'=>$this->weChat->errCode,'data'=>$this->weChat->errMsg];
       		}
 
 			$this->fansInfo = $result;
-			if(!$fansInfo = $this->getUserInfo($this->access_token = $result['access_token'],$this->openid = $result['openid'], $lang = 'zh_CN')){
-				return ['OAUTH_ERROR'=>$this->weChat->errCode,'data'=>'获取微信用户信息'];
+			if(!$fansInfo = $this->getUserInfo($this->access_token = $result['access_token'], $this->openid = $result['openid'], $lang = 'zh_CN')){
+				return ['errCode'=>$this->weChat->errCode,'data'=>'获取微信用户信息'];
 			}
 
-	    	if ($fansModel = WechatFans::where('openid',$this->openid)->first()) {
-	    		$fansModel->access_token  = $this->access_token;
-	    		$fansModel->refresh_token = $this->refresh_token;
-	    		$fansModel->expires_in    = $this->expires_in + time();
-	    		$bool = $fansModel->save();
-	    	} else {
-	    		$fansInfo['access_token'] = $this->access_token;
-	    		$fansInfo['refresh_token']= $this->refresh_token;
-	    		$fansInfo['expires_in']   = $this->expires_in + time();
-	    		$fansModel = new WechatFans;
-	    		$bool = $fansModel->save($fansInfo);
-	    	}
-	    	return $bool;
+	    	return $fansInfo;
 
 		} else {
-			$url = self::WEB_AUTHPREFIX.'appid='.$this->appid.'&redirect_uri='.urlencode(env('APP_URL')).'&response_type=code&scope=snsapi_userinfo&state=STATE#wechat_redirect';
+			$url = self::WEB_AUTHPREFIX.'appid='.$this->appid.'&redirect_uri='.urlencode($redirect_uri).'&response_type=code&scope=snsapi_userinfo&state=STATE#wechat_redirect';
 			header("location:".$url);
 		}
 	}
@@ -172,9 +132,9 @@ class Wechat
 	 * 通过code获取Access Token
 	 * @return array {access_token,expires_in,refresh_token,openid,scope}
 	 */
-	protected function getOauthAccessToken($refresh_token)
-	{
-		if ( $_GET['code']??false) {
+	protected function getOauthAccessToken($refresh_token = '') {
+
+		if ( (isset( $_GET['code']) && !empty( $_GET['code'])) ) {
 			$url = self::API_URL_PREFIX.self::GET_ACCESS_TOKEN.'appid='.$this->appid.'&secret='.$this->appsecret.'&code='.$code.'&grant_type=authorization_code';
 		} else {
 			$url = self::API_URL_PREFIX.self::GET_REFLESH_TOKEN.'appid='.$this->appid.'&refresh_token='.$this->refresh_token.'&grant_type=refresh_token';
@@ -182,12 +142,12 @@ class Wechat
 
 		$result = $this->httpGet($url);
 		if ($result){
-			$json = json_decode($result,true);
+			$json = json_decode($result, true);
 			if ( !$json || !empty($json['errcode']) ) {
 				$this->errCode = $json['errcode'];
 				$this->errMsg  = $json['errmsg'];
 				$errMsgInfo    = ErrCode::getErrText($json['errcode']);
-				p($errMsgInfo,false,CACHE_PATH.'wechat_error'.date('Ymd').'.txt');
+
 				return false;
 			}
 			return $json;
@@ -202,7 +162,7 @@ class Wechat
 	 * @return array {subscribe,openid,nickname,sex,city,province,country,language,headimgurl,subscribe_time,[unionid]}
 	 * 注意：unionid字段 只有在用户将公众号绑定到微信开放平台账号后，才会出现。建议调用前用isset()检测一下
 	 */
-	protected function getUserInfo($access_token,$openid, $lang = 'zh_CN'){
+	protected function getUserInfo($access_token, $openid, $lang = 'zh_CN'){
 		if (!$access_token) return false;
 		$url = self::API_URL_PREFIX.self::GET_USER_INFO.$access_token."&openid=".$openid."&lang=zh_CN";
 		$result = $this->httpGet($url);
@@ -213,7 +173,7 @@ class Wechat
 				$this->errCode = $json['errcode'];
 				$this->errMsg  = $json['errmsg'];
 				$errMsgInfo    = ErrCode::getErrText($json['errcode']);
-				p($errMsgInfo,false,CACHE_PATH.'wechat_error'.date('Ymd').'.txt');
+				
 				return false;
 			}
 			return $json;
@@ -233,67 +193,58 @@ class Wechat
 			$appid = $this->appid;
 			$appsecret = $this->appsecret;
 		}
+
 		if ($token) { //手动指定token，优先使用
 		    $this->access_token = $token;
 		    return $this->access_token;
 		}
 
-		$authname = 'wechat_access_token'.$appid;
-		if ($rs = $this->getCache($authname)) {
-			$this->access_token = $rs;
-			return $rs;
-		}
-
 		$result = $this->httpGet(self::API_URL_PREFIX.self::AUTH_URL.'appid='.$appid.'&secret='.$appsecret);
-		if ($result)
-		{
-			$json = json_decode($result,true);
+
+		if ($result){
+			$json = json_decode($result, true);
 			if (!$json || isset($json['errcode'])) {
 				$this->errCode = $json['errcode'];
 				$this->errMsg = $json['errmsg'];
 				return false;
 			}
+
 			$this->access_token = $json['access_token'];
 			$expire = $json['expires_in']? intval($json['expires_in']) : 7200;
-			$this->setCache($authname,$this->access_token,$expire);
 			return $this->access_token;
 		}
+
 		return false;
 	}
 
-	public function getTicket()
-	{
-		$authname = 'wechat_ticket'.$this->appid;;
-		if ($rs = $this->getCache($authname)) {
-			$this->ticket = $rs;
-			return $rs;
-		}
+	public function getTicket(){
 
 		$result = $this->httpGet(self::API_URL_PREFIX.self::GET_TICKET.'access_token='.$this->access_token.'&type=jsapi');
-		if ($result)
-		{
+		if ($result){
 			$json = json_decode($result,true);
+
 			if ( !$json || $json['errcode'] != 0 ) {
 				$this->errCode = $json['errcode'];
-				$this->errMsg = $json['errmsg'];
+				$this->errMsg  = $json['errmsg'];
 				return false;
 			}
+
 			$this->ticket = $json['ticket'];
 			$expire = $json['expires_in']? intval($json['expires_in']) : 7200;
-			$this->setCache($authname,$this->ticket,$expire);
 			return $this->ticket;
 		}
+
 		return false;
 	}
 
-	public function jsapiTicket($debug = false)
-	{
+	public function jsapiTicket($debug = false){
+
 		$this->checkAuth();
         $this->getTicket();
-		$noncestr = createToken(16);
+		$noncestr = $this->createToken(16);
 		$timestamp = time();
 
-		$string = 'jsapi_ticket='.$this->ticket.'&noncestr='.$noncestr.'&timestamp='.$timestamp.'&url='.request()->header('referer');
+		$string = 'jsapi_ticket='.$this->ticket.'&noncestr='.$noncestr.'&timestamp='.$timestamp.'&url=';
 		$signature = [
             'debug' 	=> $debug,
             'appId' 	=> $this->appid,
@@ -301,6 +252,7 @@ class Wechat
             'nonceStr'  => $noncestr,
             'signature' => sha1($string)
         ];
+
 		return $signature;
 	}
 
@@ -311,16 +263,19 @@ class Wechat
 	public function getUserList($next_openid=''){
 		if (!$this->access_token && !$this->checkAuth()) return false;
 		$result = $this->httpGet(self::API_URL_PREFIX.self::USER_GET_URL.'access_token='.$this->access_token.'&next_openid='.$next_openid);
-		if ($result)
-		{
+
+		if ($result){
 			$json = json_decode($result,true);
+
 			if (isset($json['errcode'])) {
 				$this->errCode = $json['errcode'];
 				$this->errMsg = $json['errmsg'];
 				return false;
 			}
+
 			return $json;
 		}
+
 		return false;
 	}
 
@@ -333,8 +288,8 @@ class Wechat
 	public function getUsersInfo($openids){
 		if (!$this->access_token && !$this->checkAuth()) return false;
 		$result = $this->httpPost(self::API_URL_PREFIX.self::USERS_INFO_URL.'access_token='.$this->access_token,json_encode($openids));
-		if ($result)
-		{
+
+		if ($result){
 			$json = json_decode($result,true);
 			if (isset($json['errcode'])) {
 				$this->errCode = $json['errcode'];
@@ -343,6 +298,7 @@ class Wechat
 			}
 			return $json;
 		}
+
 		return false;
 	}
 
@@ -350,12 +306,11 @@ class Wechat
 	 * GET 请求
 	 * @param string $url
 	 */
-	private function httpGet($url)
-	{
+	private function httpGet($url){
 		$oCurl = curl_init();
-		if(stripos($url,"https://")!==FALSE){
-			curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
-			curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, FALSE);
+		if (stripos($url,"https://") !== false){
+			curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, false);
+			curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, false);
 			curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
 		}
 		curl_setopt($oCurl, CURLOPT_URL, $url);
@@ -363,9 +318,10 @@ class Wechat
 		$sContent = curl_exec($oCurl);
 		$aStatus = curl_getinfo($oCurl);
 		curl_close($oCurl);
-		if(intval($aStatus["http_code"])==200){
+
+		if (intval($aStatus["http_code"]) == 200){
 			return $sContent;
-		}else{
+		} else {
 			return false;
 		}
 	}
@@ -377,14 +333,14 @@ class Wechat
 	 * @param boolean $post_file 是否文件上传
 	 * @return string content
 	 */
-	private function httpPost($url,$param,$post_file=false)
-	{
+	private function httpPost($url,$param,$post_file=false){
 		$oCurl = curl_init();
-		if(stripos($url,"https://")!==FALSE){
-			curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, FALSE);
+		if (stripos($url,"https://") !== false){
+			curl_setopt($oCurl, CURLOPT_SSL_VERIFYPEER, false);
 			curl_setopt($oCurl, CURLOPT_SSL_VERIFYHOST, false);
 			curl_setopt($oCurl, CURLOPT_SSLVERSION, 1); //CURL_SSLVERSION_TLSv1
 		}
+
 		if (PHP_VERSION_ID >= 50500 && class_exists('\CURLFile')) {
 			$is_curlFile = true;
 		} else {
@@ -393,9 +349,10 @@ class Wechat
 				curl_setopt($oCurl, CURLOPT_SAFE_UPLOAD, false);
 			}
 		}
+
 		if (is_string($param)) {
 			$strPOST = $param;
-		}elseif($post_file) {
+		} elseif ($post_file) {
 			if($is_curlFile) {
 				foreach ($param as $key => $val) {
 					if (substr($val, 0, 1) == '@') {
@@ -406,11 +363,12 @@ class Wechat
 			$strPOST = $param;
 		} else {
 			$aPOST = array();
-			foreach($param as $key=>$val){
+			foreach ($param as $key=>$val){
 				$aPOST[] = $key."=".urlencode($val);
 			}
 			$strPOST =  join("&", $aPOST);
 		}
+
 		curl_setopt($oCurl, CURLOPT_URL, $url);
 		curl_setopt($oCurl, CURLOPT_RETURNTRANSFER, 1 );
 		curl_setopt($oCurl, CURLOPT_POST,true);
@@ -418,57 +376,26 @@ class Wechat
 		$sContent = curl_exec($oCurl);
 		$aStatus = curl_getinfo($oCurl);
 		curl_close($oCurl);
-		if(intval($aStatus["http_code"])==200){
+
+		if(intval($aStatus["http_code"]) == 200){
 			return $sContent;
-		}	else {
+		} else {
 			return false;
 		}
 	}
 
-
-	/**
-	 * 设置缓存
-	 * @param string $cachename
-	 * @param mixed $value
-	 * @param int $expired
-	 * @return boolean
-	 */
-	protected function setCache($cachename,$value,$expire = 0){
-		//TODO: set cache implementation
-		$expire == 0? 360 * 24 * 3600:$expire;
-		return Cache::put($cachename, $value, $expire);
-		try {
-			$expire >0 && Redis::expire($cachename, $expire);
-		} catch (Exception $e) {
-			return false;
-		}
-		return true;
-	}
-
-	/**
-	 * 获取缓存
-	 * @param string $cachename
-	 * @param mixed $value
-	 * @param int $expired
-	 * @return boolean
-	 */
-	protected function getCache($cachename){
-		//TODO: set cache implementation
-		return Cache::get($cachename,null);
-	}
-
-	/**
-	 * 清除缓存，按需重载
-	 * @param string $cachename
-	 * @return boolean
-	 */
-	protected function removeCache($cachename){
-		//TODO: remove cache implementation
-		Cache::forget($cachename);
-		if (Cache::has($cachename)) {
-			return true;
-		}
-		return false;
-	}
+	public function createToken($length = 100) {
+        if ($length <= 10) {
+            throw new Exception("The parameter value must be greater than 10.", 1);
+        }
+        $chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";
+        $arr = str_split($chars);
+        shuffle($arr);
+        $token = "";
+        for ( $i = 0; $i < $length; $i++ ) {
+            $token .= $arr[mt_rand(0,strlen($chars) -1)];
+        }
+        return $token;
+    }
 
 }

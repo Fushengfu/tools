@@ -51,9 +51,9 @@ class Request
             $cookieFile = $options['cookie_file']??false;
             $referer    = $options['referer']??false;
         } else {
-            $query      = (isset($options['query']) && !empty($options['query'])) ? $options['query'] : false;
+            $query      = (isset($options['query'])   && !empty($options['query'])) ? $options['query'] : false;
             $headers    = (isset($options['headers']) && !empty($options['headers'])) ? $options['headers'] : false;
-            $cookie     = (isset($options['cookie']) && !empty($options['cookie'])) ? $options['cookie'] : false;
+            $cookie     = (isset($options['cookie'])  && !empty($options['cookie'])) ? $options['cookie'] : false;
             $cookieFile = (isset($options['cookie_file']) && !empty($options['cookie_file'])) ? $options['cookie_file'] : false;
             $referer    = (isset($options['referer']) && !empty($options['referer'])) ? $options['referer'] : false;
         }
@@ -108,11 +108,16 @@ class Request
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, false);
+        
         $content = curl_exec($curl);
         $status = curl_getinfo($curl);
+
         if ($status['http_code'] !== 200) {
             $content = false;
         }
+
+        curl_close($curl);
+
         return $content;
     }
 
@@ -125,6 +130,7 @@ class Request
     private static function setFormData($data, $build = true)
     {
         if (!is_array($data)) return $data;
+
         foreach ($data as $key => $value) if (is_object($value) && $value instanceof \CURLFile) {
             $build = false;
         } elseif (is_string($value) && class_exists('CURLFile', false) && stripos($value, '@') === 0) {

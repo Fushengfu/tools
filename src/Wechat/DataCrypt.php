@@ -8,11 +8,10 @@ namespace Amulet\Wechat;
 // | Author: fushengfu <shengfu8161980541@qq.com>
 // +----------------------------------------------------------------------
 
-include_once "errorCode.php";
+use Amulet\Wechat\ErrorCode;
 
 
-class DataCrypt
-{
+class DataCrypt {
 	private $appid;
 	private $sessionKey;
 
