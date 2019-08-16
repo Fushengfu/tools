@@ -23,10 +23,10 @@ class PayConfig
 	 * 获取地址：https://mp.weixin.qq.com/advanced/advanced?action=dev&t=advanced/dev&token=2005451881&lang=zh_CN
 	 * @var string
 	 */
-	const APPID = 'wx156602ed335c0245';
-	const MCHID = '1498845792';
-	const KEY = '2625488C078CCAFA983FAE98BEC81B38';
-	const APPSECRET = '7813490da6f1265e4901ffb80afaa36f';
+	const APPID = 'sdfdsf';
+	const MCHID = '149884sfsdf5792';
+	const KEY = 'sdfdsfdsf';
+	const APPSECRET = '7813490da6f12sdfsdfsdf65e4901ffb80afaa36f';
 	
 	//=======【证书路径设置】=====================================
 	/**
