@@ -67,7 +67,7 @@ class Wechat
 	 */
 	public function checkSignature($get = array()) {
 		$signature = (isset($get["signature"]) 		&& !empty($get["signature"])) ? $get["signature"] : '';
-		$signature = (isset($get["msg_signature"]) 	&& !empty($get["msg_signature"])) ? $get["msg_signature"] : $signature; //如果存在加密验证则用加密验证段
+		// $signature = (isset($get["msg_signature"]) 	&& !empty($get["msg_signature"])) ? $get["msg_signature"] : $signature; //如果存在加密验证则用加密验证段
 		$timestamp = (isset($get["timestamp"]) 		&& !empty($get["timestamp"]))? $get["timestamp"] : '';
 		$nonce 	   = (isset($get["nonce"]) 			&& !empty($get["nonce"])) ? $get["nonce"] : '';
 		$token     = $this->token;

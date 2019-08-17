@@ -8,6 +8,8 @@ namespace Amulet\Wechat;
 // | Author: fushengfu <shengfu8161980541@qq.com>
 // +----------------------------------------------------------------------
 
+use Amulet\Wechat\Crypt\WXBizMsgCrypt;
+
 class Receive {
     /** 消息推送地址 */
     const CUSTOM_SEND_URL           = '/message/custom/send?';
@@ -34,48 +36,54 @@ class Receive {
     // 接受请求数据
     private $_receive;
 
+    private $token;
+    private $encodingAesKey;
+    private $appid;
+
     // 类的实例
     private static $instance;
 
-    private function __construct(){
+    private $config;
+
+    private function __construct($options){
+        $this->token            = (isset($options['token'])             && !empty($options['token'])) ? $options['token'] : '';
+        $this->encodingAesKey   = (isset($options['encodingaeskey'])    && !empty($options['encodingaeskey'])) ? $options['encodingaeskey'] : '';
+        $this->appid            = (isset($options['appid'])             && !empty($options['appid'])) ? $options['appid'] : '';
+
         $postStr = file_get_contents("php://input");
-        if (stripos('<xml>', $postStr)) {
-            $this->_receive = (array)simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
+        if (isset($_GET['encrypt_type'])) {
+            $this->_receive = $this->decryptMsg($postStr);
+
         } else {
-            $this->_receive = json_decode($postStr, true);
+
+            if (stripos($postStr, '<xml>') !== false) {
+                $this->_receive = (array)simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
+            } else {
+                $this->_receive = json_decode($postStr, true);
+            }
         }
     }
 
     // 解密数据
     protected function decryptMsg($encryptMsg){
-        $timeStamp  = $_GET['timeStamp'];
+        $timeStamp  = $_GET['timestamp'];
         $nonce      = $_GET['nonce'];
-
-        $xml_tree   = new DOMDocument();
-        $xml_tree->loadXML($encryptMsg);
-        $array_e    = $xml_tree->getElementsByTagName('Encrypt');
-        $array_s    = $xml_tree->getElementsByTagName('MsgSignature');
-        $encrypt    = $array_e->item(0)->nodeValue;
-        // $msg_sign   = $array_s->item(0)->nodeValue;
         $msg_sign   = $_GET['msg_signature'];
-
-        $format = "<xml><ToUserName><![CDATA[toUser]]></ToUserName><Encrypt><![CDATA[%s]]></Encrypt></xml>";
-        $from_xml = sprintf($format, $encrypt);
-
         // 第三方收到公众号平台发送的消息
         $msg = '';
-        $errCode = $pc->decryptMsg($msg_sign, $timeStamp, $nonce, $from_xml, $msg);
+        $pc = new WXBizMsgCrypt($this->token, $this->encodingAesKey, $this->appid);
+        $errCode = $pc->decryptMsg($msg_sign, $timeStamp, $nonce, $encryptMsg, $msg);
         if ($errCode == 0) {
-            print("解密后: " . $msg . "\n");
+            return $msg;
         } else {
-            print($errCode . "\n");
+            return ['errCode'=> $errCode, 'msg'=> '解析失败'];
         }
     }
 
     // 创建操作对象
-    public static function instance(){
+    public static function instance($options){
         if (is_null(self::$instance)) {
-            self::$instance = new self;
+            self::$instance = new self($options);
         }
 
         return self::$instance;

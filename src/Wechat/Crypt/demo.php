@@ -32,6 +32,7 @@ $from_xml = sprintf($format, $encrypt);
 
 // 第三方收到公众号平台发送的消息
 $msg = '';
+
 $errCode = $pc->decryptMsg($msg_sign, $timeStamp, $nonce, $from_xml, $msg);
 if ($errCode == 0) {
 	print("解密后: " . $msg . "\n");
