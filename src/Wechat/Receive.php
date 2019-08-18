@@ -52,15 +52,13 @@ class Receive {
 
         $postStr = file_get_contents("php://input");
         if (isset($_GET['encrypt_type'])) {
-            $this->_receive = $this->decryptMsg($postStr);
+            $postStr = $this->decryptMsg($postStr);
+        }
 
+        if (stripos($postStr, '<xml>') !== false) {
+            $this->_receive = (array)simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
         } else {
-
-            if (stripos($postStr, '<xml>') !== false) {
-                $this->_receive = (array)simplexml_load_string($postStr, 'SimpleXMLElement', LIBXML_NOCDATA);
-            } else {
-                $this->_receive = json_decode($postStr, true);
-            }
+            $this->_receive = json_decode($postStr, true);
         }
     }
 
