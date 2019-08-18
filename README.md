@@ -16,7 +16,7 @@ src
 
 
 ```
-###安装教程
+### 安装教程
 
 ```
 composer require amulet/amulet-tools
