@@ -18,7 +18,7 @@ src
 ### 实例
 
 1、微信接口使用
-`
+```
 //引入包名
 use Amulet\Wechat\{Wechat, Receive};
 #
@@ -38,4 +38,4 @@ $wechat->checkSignature($query);
 #接收微信事件推送消息 实例化
 // 实例化消息对象
 $recv = Receive::instance((array)$options);
-`
+```
