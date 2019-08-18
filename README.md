@@ -14,6 +14,12 @@ src
 │
 ├─Wechat               微信工具包 目录
 
+###安装教程
+
+```
+composer require amulet/amulet-tools
+```
+
 ```
 ### 实例
 
