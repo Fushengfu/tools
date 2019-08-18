@@ -116,7 +116,7 @@ class Prpcrypt {
 	 * 随机生成16位字符串
 	 * @return string 生成的字符串
 	 */
-	function getRandomStr(){
+	public function getRandomStr(){
 
 		$str = "";
 		$str_pol = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789abcdefghijklmnopqrstuvwxyz";

@@ -18,7 +18,7 @@ class PKCS7Encoder {
 	 * @param $text 需要进行填充补位操作的明文
 	 * @return 补齐明文字符串
 	 */
-	function encode($text){
+	public function encode($text){
 		$block_size = PKCS7Encoder::$block_size;
 		$text_length = strlen($text);
 		//计算需要填充的位数
@@ -40,7 +40,7 @@ class PKCS7Encoder {
 	 * @param decrypted 解密后的明文
 	 * @return 删除填充补位后的明文
 	 */
-	function decode($text){
+	public function decode($text){
 
 		$pad = ord(substr($text, -1));
 		if ($pad < 1 || $pad > 32) {
