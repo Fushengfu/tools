@@ -112,12 +112,20 @@ class Wechat
 			&& time() - $this->expires_in < 30 * 24 * 60 * 60 + 7200)) {
 
 			if (!$result = $this->getOauthAccessToken($this->refresh_token)) {
-				return ['errCode'=>$this->weChat->errCode,'data'=>$this->weChat->errMsg];
+				return [
+					'errCode'=> $this->weChat->errCode,
+					'data'=> $this->weChat->errMsg
+				];
       		}
 
-			$this->fansInfo = $result;
-			if(!$fansInfo = $this->getUserInfo($this->access_token = $result['access_token'], $this->openid = $result['openid'], $lang = 'zh_CN')){
-				return ['errCode'=>$this->weChat->errCode,'data'=>'获取微信用户信息'];
+			$this->fansInfo 	= $result;
+			$this->access_token = $result['access_token'];
+
+			if(!$fansInfo = $this->getUserInfo($result['openid']) ){
+				return [
+					'errCode'=> $this->weChat->errCode,
+					'data'=> '获取微信用户信息'
+				];
 			}
 
 	    	return $fansInfo;
@@ -162,9 +170,9 @@ class Wechat
 	 * @return array {subscribe,openid,nickname,sex,city,province,country,language,headimgurl,subscribe_time,[unionid]}
 	 * 注意：unionid字段 只有在用户将公众号绑定到微信开放平台账号后，才会出现。建议调用前用isset()检测一下
 	 */
-	protected function getUserInfo($access_token, $openid, $lang = 'zh_CN'){
-		if (!$access_token) return false;
-		$url = self::API_URL_PREFIX.self::GET_USER_INFO.$access_token."&openid=".$openid."&lang=zh_CN";
+	public function getUserInfo($openid, $lang = 'zh_CN'){
+		if (!$this->access_token) return false;
+		$url = self::API_URL_PREFIX.self::GET_USER_INFO.$this->access_token."&openid=".$openid."&lang=zh_CN";
 		$result = $this->httpGet($url);
 
 		if ($result) {
