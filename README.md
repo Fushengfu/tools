@@ -27,18 +27,18 @@ composer require amulet/amulet-tools
 # Contents
 <ul>
 	<li>
-		<a href="#微信">微信</a>
+		<a href="#wechat">微信</a>
 		<ul>
 			<li> <a href="#微信接口使用">微信接口使用</a></li>
 			<li> <a href="#接收微信消息">接收微信消息</a></li>
 		</ul>
 	</li>
 	<li>
-		<a href="#压缩">压缩</a>
+		<a href="#ZipArchive">压缩</a>
 	</li>
 </ul>
 
-# 微信
+# wechat
 
 ## 微信接口使用
 
@@ -81,7 +81,7 @@ $wechat->checkSignature($query);
 $recv = Receive::instance((array)$options);
 ```
 
-# 压缩
+# ZipArchive
 
 ```
 use Amulet\Tools\FileZip;
