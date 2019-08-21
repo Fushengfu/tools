@@ -16,7 +16,7 @@ class FileZip
 	 * @param $files array 文件列表
 	 * @param $fileName string 压缩文件名
 	 */
-	public function compression($files, $zipname, $download = true)
+	public static function compression($files, $zipname, $download = true)
 	{
 		// $zipname = 'enter_any_name_for_the_zipped_file.zip';
 		$zip = new ZipArchive;
@@ -39,7 +39,7 @@ class FileZip
 	 * 解压缩文件
 	 * @param $fileName string 压缩文件名
 	 */
-	public function extract($zipname, $path)
+	public static function extract($zipname, $path)
 	{
 		$zip = new ZipArchive;
 		if ($zip->open($zipname) === true) {
