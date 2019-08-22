@@ -18,20 +18,33 @@ class FileZip
 	 */
 	public static function compression($files, $zipname, $download = true)
 	{
-		// $zipname = 'enter_any_name_for_the_zipped_file.zip';
-		$zip = new ZipArchive;
-		$zip->open($zipname, ZipArchive::CREATE);
-		 foreach ($files as $file) {
-		   $zip->addFile($file);
-		 }
-		$zip->close();
+		$zip = new \ZipArchive;
+		if ($zip->open($zipname, \ZipArchive::CREATE) === true) {
 
-		if ($download) {
-			///Then download the zipped file.
-			header('Content-Type: application/zip');
-			header('Content-disposition: attachment; filename='.$zipname);
-			header('Content-Length: ' . filesize($zipname));
-			readfile($zipname);
+			$dirPath = str_replace('.'.strchr($zipname, '.'), '/', $zipname);
+			foreach ($files as $file) {
+			 	$arr = explode('/', $file);
+
+			 	if (!copy($file, $dirPath.$arr[count($arr) - 1])) {
+			 		throw new Exception("failed to copy $file...", 1);
+			 	}
+
+				$zip->addFile($dirPath.$arr[count($arr) - 1]);
+			}
+			$zip->close();
+
+			if ($download) {
+				///Then download the zipped file.
+				header('Content-Type: application/zip');
+				header('Content-disposition: attachment; filename='.$zipname);
+				header('Content-Length: ' . filesize($zipname));
+				readfile($zipname);
+			} else {
+				return true;
+			}
+			
+		} else {
+			return false;
 		}
 	}
 
